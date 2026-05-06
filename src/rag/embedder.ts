@@ -1,13 +1,28 @@
 /**
  * Simple TF (Term Frequency) embedder for MVP.
  * In production, replace with an embedding API (OpenAI, Cohere, etc.).
+ *
+ * Tokenization strategy:
+ * - Chinese characters (CJK): each character is a separate token (bigram would be better but this works for MVP)
+ * - Alphabetic/alphanumeric: grouped as words
+ * - Everything else (punctuation, whitespace): discarded
  */
 
 export function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((t) => t.length > 1);
+  const tokens: string[] = [];
+  // Match: CJK individual characters OR sequences of letters/digits
+  const regex = /[\p{Script=Han}]|[a-zA-Z0-9]+/gu;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const token = match[0].toLowerCase();
+    // Keep CJK chars (length 1) and meaningful words (length > 1 for latin)
+    if (token.length === 1 && /[\p{Script=Han}]/u.test(token)) {
+      tokens.push(token);
+    } else if (token.length > 1) {
+      tokens.push(token);
+    }
+  }
+  return tokens;
 }
 
 export function buildTFVector(tokens: string[]): Map<string, number> {
