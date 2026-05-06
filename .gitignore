@@ -1,0 +1,19 @@
+# 依赖目录——每个开发人员自己 pnpm install
+node_modules/
+
+# 编译产物——每次 build 重新生成
+dist/
+
+# 环境变量——包含 API 密钥，绝对不能提交到 git
+.env
+
+# IDE 配置
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log

@@ -1,0 +1,39 @@
+{
+  "name": "cs-agent",
+  "version": "0.1.0",
+  "description": "Production-grade customer service AI agent — built for learning agent fundamentals",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "ai-agent",
+    "llm",
+    "tool-calling",
+    "rag",
+    "customer-service"
+  ],
+  "author": "chx",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "openai": "^6.36.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "uuid": "^14.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "@types/uuid": "^11.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

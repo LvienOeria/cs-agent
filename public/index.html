@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS Agent - 智能客服</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+    header { background: #1a1a2e; color: white; padding: 16px 24px; font-size: 18px; font-weight: 600; }
+    header span { font-size: 12px; font-weight: 400; opacity: 0.6; margin-left: 8px; }
+    #messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+    .msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+    .msg.user { align-self: flex-end; background: #16213e; color: white; border-bottom-right-radius: 4px; }
+    .msg.agent { align-self: flex-start; background: white; color: #333; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .msg.status { align-self: flex-start; background: transparent; color: #888; font-size: 12px; padding: 4px 8px; }
+    .msg.status .tool-name { color: #e94560; font-weight: 600; }
+    .msg.error { align-self: center; background: #ffe0e0; color: #c0392b; font-size: 13px; }
+    #input-area { padding: 16px 24px; background: white; border-top: 1px solid #e0e0e0; display: flex; gap: 12px; }
+    #input-area input { flex: 1; padding: 12px 16px; border: 1px solid #ddd; border-radius: 24px; font-size: 14px; outline: none; }
+    #input-area input:focus { border-color: #e94560; }
+    #input-area button { padding: 12px 24px; background: #e94560; color: white; border: none; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    #input-area button:disabled { background: #ccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <header>CS Agent <span>智能客服 Demo</span></header>
+  <div id="messages"></div>
+  <div id="input-area">
+    <input id="input" type="text" placeholder="输入消息，例如：帮我查订单 ORD-001" autofocus />
+    <button id="send" onclick="send()">发送</button>
+  </div>
+
+  <script>
+    const messages = document.getElementById('messages');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    let history = [];
+    let currentStatusEl = null;
+
+    function addMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + role;
+      div.textContent = text;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+      return div;
+    }
+
+    function addStatus(text) {
+      removeStatus();
+      currentStatusEl = addMessage('status', text);
+    }
+
+    function removeStatus() {
+      if (currentStatusEl) { currentStatusEl.remove(); currentStatusEl = null; }
+    }
+
+    async function send() {
+      const message = input.value.trim();
+      if (!message) return;
+
+      input.value = '';
+      sendBtn.disabled = true;
+      addMessage('user', message);
+
+      try {
+        const res = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          addMessage('error', '错误: ' + (err.error || '请求失败'));
+          sendBtn.disabled = false;
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let agentResponse = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+              handleEvent(event);
+              if (event.type === 'done') agentResponse = event.content;
+            } catch {}
+          }
+        }
+
+        if (agentResponse) {
+          history.push({ role: 'user', content: message });
+          history.push({ role: 'assistant', content: agentResponse });
+          // Keep history manageable
+          if (history.length > 20) history = history.slice(-20);
+        }
+      } catch (err) {
+        addMessage('error', '网络错误: ' + err.message);
+      } finally {
+        removeStatus();
+        sendBtn.disabled = false;
+      }
+    }
+
+    function handleEvent(event) {
+      switch (event.type) {
+        case 'status':
+          if (event.status === 'thinking') addStatus(`思考中... (第 ${event.round} 轮)`);
+          else if (event.status === 'responding') addStatus('正在回复...');
+          break;
+        case 'tool_call':
+          addStatus(`调用工具: <span class="tool-name">${event.name}</span>`);
+          break;
+        case 'tool_result':
+          removeStatus();
+          break;
+        case 'done':
+          addMessage('agent', event.content);
+          break;
+        case 'error':
+          addMessage('error', event.message);
+          break;
+      }
+    }
+
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+  </script>
+</body>
+</html>
