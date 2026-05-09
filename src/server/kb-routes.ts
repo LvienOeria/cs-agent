@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { unlink } from 'node:fs/promises';
+import { unlink, mkdir } from 'node:fs/promises';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
@@ -20,6 +20,9 @@ const addDocSchema = z.object({
   metadata: z.record(z.string(), z.string()).optional(),
   tenantId: z.string().optional(),
 });
+
+// Ensure tmp upload dir exists before multer touches it
+await mkdir('data/uploads/_tmp', { recursive: true }).catch(() => {});
 
 const upload = multer({
   storage: multer.diskStorage({

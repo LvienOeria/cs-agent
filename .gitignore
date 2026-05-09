@@ -18,3 +18,4 @@ Thumbs.db
 # 日志文件
 *.log
 data/uploads/
+.claude/worktrees/

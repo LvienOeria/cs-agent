@@ -37,7 +37,8 @@ export function chunkText(text: string, options: ChunkOptions = {}): string[] {
     }
 
     chunks.push(text.slice(start, splitAt));
-    start = splitAt;
+    start = start + step;
+    if (start >= splitAt) start = splitAt; // avoid regress when step > splitAt-start
   }
 
   // Merge trailing short chunk into previous
