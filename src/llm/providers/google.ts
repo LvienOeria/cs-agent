@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   GoogleGenerativeAI,
   type Content,
@@ -78,7 +79,7 @@ export function createGeminiProvider(): LLMProviderFactory {
     function geminiPartToToolCall(part: Part): ToolCallDelta | null {
       if (!part.functionCall) return null;
       return {
-        id: part.functionCall.name,
+        id: randomUUID(),
         type: 'function',
         function: {
           name: part.functionCall.name,
