@@ -4,14 +4,17 @@ import { knowledgeBase } from './rag/knowledge-base.js';
 import { createApp } from './server/app.js';
 import { registerProvider, createClient } from './llm/registry.js';
 import { createOpenAICompatProvider } from './llm/providers/openai-compat.js';
+import { createAnthropicProvider } from './llm/providers/anthropic.js';
+import { createGeminiProvider } from './llm/providers/google.js';
 import { setRetriever } from './tools/search-kb.js';
 
-// Register LLM providers
+// Register all 6 LLM providers
 registerProvider('deepseek', createOpenAICompatProvider('https://api.deepseek.com/v1'));
 registerProvider('openai', createOpenAICompatProvider('https://api.openai.com/v1'));
 registerProvider('qwen', createOpenAICompatProvider('https://dashscope.aliyuncs.com/compatible-mode/v1'));
 registerProvider('kimi', createOpenAICompatProvider('https://api.moonshot.cn/v1'));
-// Note: claude & gemini need non-OpenAI-compat adapters (Phase 2)
+registerProvider('claude', createAnthropicProvider());
+registerProvider('gemini', createGeminiProvider());
 
 async function main(): Promise<void> {
   // Load knowledge base

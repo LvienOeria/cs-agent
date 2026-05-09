@@ -11,8 +11,15 @@ export const envSchema = z.object({
   LLM_BASE_URL: z.string().url().optional(),
   LLM_MODEL: z.string().optional(),
 
-  // Backwards compat: DeepSeek-only config
+  // Provider-specific API keys (fallback when LLM_API_KEY not set)
   DEEPSEEK_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  QWEN_API_KEY: z.string().optional(),
+  KIMI_API_KEY: z.string().optional(),
+
+  // Backwards compat
   DEEPSEEK_BASE_URL: z.string().url().optional(),
   DEEPSEEK_MODEL: z.string().optional(),
 
