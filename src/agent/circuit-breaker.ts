@@ -37,7 +37,7 @@ export function createCircuitBreaker(
   function recordFailure(): void {
     failures++;
     lastFailureTime = Date.now();
-    if (failures >= failureThreshold && state === State.Closed) {
+    if (failures >= failureThreshold && state !== State.Open) {
       state = State.Open;
       options.onOpen?.();
       logger.error({ failures }, 'Circuit breaker opened');
