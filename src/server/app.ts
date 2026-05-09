@@ -1,5 +1,6 @@
 import express from 'express';
 import { createRouter } from './routes.js';
+import { createKbRouter } from './kb-routes.js';
 import type { LLMClient } from '../llm/types.js';
 
 export function createApp(client: LLMClient, model: string): express.Application {
@@ -12,6 +13,7 @@ export function createApp(client: LLMClient, model: string): express.Application
 
   // API routes
   app.use('/api', createRouter(client, model));
+  app.use('/api/kb', createKbRouter());
 
   // Health check
   app.get('/health', (_req, res) => {

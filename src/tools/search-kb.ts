@@ -20,18 +20,22 @@ export const searchKbDef: ToolDef = {
           type: 'string',
           description: '搜索关键词或问题，例如："退货政策"、"会员等级"、"发货时间"',
         },
+        tenantId: {
+          type: 'string',
+          description: '租户ID（可选），用于隔离不同客户的知识库',
+        },
       },
       required: ['query'],
     },
   },
 };
 
-export async function searchKnowledgeBase(query: string): Promise<string> {
+export async function searchKnowledgeBase(query: string, tenantId?: string): Promise<string> {
   if (!retriever) {
     return JSON.stringify({ found: false, message: '知识库未初始化' });
   }
 
-  const results = await retriever.search(query, 3);
+  const results = await retriever.search(query, 3, tenantId);
 
   if (results.length === 0) {
     return JSON.stringify({ found: false, message: '未找到相关知识库内容' });

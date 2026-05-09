@@ -2,51 +2,91 @@
   {
     "id": "kb-001",
     "content": "退货政策：自收到商品之日起7天内可申请退货，商品需保持原包装完好。退款将在收到退货后3-5个工作日原路返回。生鲜和定制商品不支持退货。",
-    "metadata": { "category": "退货", "priority": "high" }
+    "metadata": {
+      "category": "退货",
+      "priority": "high"
+    }
   },
   {
     "id": "kb-002",
     "content": "发货时间：工作日14:00前下单当天发货，之后次日发货。节假日顺延。默认使用顺丰快递，全国2-3天送达。",
-    "metadata": { "category": "物流", "priority": "high" }
+    "metadata": {
+      "category": "物流",
+      "priority": "high"
+    }
   },
   {
     "id": "kb-003",
     "content": "会员等级：普通会员（消费0-999元，享98折）、银卡会员（1000-4999元，享95折）、金卡会员（5000-14999元，享9折）、钻石会员（15000元以上，享85折）。会员每年1月1日重置计算上年消费。",
-    "metadata": { "category": "会员", "priority": "medium" }
+    "metadata": {
+      "category": "会员",
+      "priority": "medium"
+    }
   },
   {
     "id": "kb-004",
     "content": "支付方式：支持微信支付、支付宝、银联卡、Apple Pay。单笔订单满99元免运费，未满收取8元运费。大额支付（超过5000元）可能需要短信验证。",
-    "metadata": { "category": "支付", "priority": "medium" }
+    "metadata": {
+      "category": "支付",
+      "priority": "medium"
+    }
   },
   {
     "id": "kb-005",
     "content": "客服工作时间：周一至周五 9:00-21:00，周六日 10:00-18:00。非工作时间可在App内留言，客服上班后第一时间回复。紧急问题可拨打400-888-6666。",
-    "metadata": { "category": "客服", "priority": "high" }
+    "metadata": {
+      "category": "客服",
+      "priority": "high"
+    }
   },
   {
     "id": "kb-006",
     "content": "商品保修：电子产品享有一年质保，非人为损坏免费维修。其他商品如有质量问题，收货后48小时内联系客服处理。质保期内维修免运费。",
-    "metadata": { "category": "售后", "priority": "high" }
+    "metadata": {
+      "category": "售后",
+      "priority": "high"
+    }
   },
   {
     "id": "kb-007",
     "content": "优惠券使用规则：优惠券需在有效期内使用，不可叠加使用（特殊说明除外）。满减券需订单金额达到门槛后方可使用。优惠券不可兑换现金，退款时优惠券金额不退。",
-    "metadata": { "category": "优惠", "priority": "medium" }
+    "metadata": {
+      "category": "优惠",
+      "priority": "medium"
+    }
   },
   {
     "id": "kb-008",
     "content": "账号安全：如忘记密码可通过注册手机号或邮箱重置。开启两步验证可提升安全性。请勿将验证码告知他人，客服不会索要您的密码和验证码。",
-    "metadata": { "category": "账号", "priority": "medium" }
+    "metadata": {
+      "category": "账号",
+      "priority": "medium"
+    }
   },
   {
     "id": "kb-009",
     "content": "订单取消：未发货订单可随时取消，款项立即退回。已发货订单需在收到货后走退货流程。预售商品定金不可退。",
-    "metadata": { "category": "订单", "priority": "high" }
+    "metadata": {
+      "category": "订单",
+      "priority": "high"
+    }
   },
   {
     "id": "kb-010",
     "content": "团购规则：团购商品需达到成团人数方可发货，24小时未成团自动退款。团长享额外5%折扣。团购商品不支持无理由退货（质量问题除外）。",
-    "metadata": { "category": "团购", "priority": "low" }
+    "metadata": {
+      "category": "团购",
+      "priority": "low"
+    }
+  },
+  {
+    "id": "bb5510d4-2b4b-4751-813c-00221addccd0-chunk-0",
+    "content": "这是测试文档内容。包含一些关于物流的信息：大件商品配送时效为3-7个工作日，小件商品1-2个工作日送达。退换货政策：支持7天无理由退货。\n",
+    "metadata": {
+      "documentId": "bb5510d4-2b4b-4751-813c-00221addccd0",
+      "sourceFile": "data/uploads/_tmp/1f358491-fce4-449c-9bc7-0e0596a8cb69-test-doc.txt",
+      "chunkIndex": "0",
+      "totalChunks": "1"
+    }
   }
 ]

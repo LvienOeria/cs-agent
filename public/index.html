@@ -7,8 +7,11 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
-    header { background: #1a1a2e; color: white; padding: 16px 24px; font-size: 18px; font-weight: 600; }
-    header span { font-size: 12px; font-weight: 400; opacity: 0.6; margin-left: 8px; }
+    header { background: #1a1a2e; color: white; padding: 16px 24px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 24px; }
+    header span { font-size: 12px; font-weight: 400; opacity: 0.6; }
+    header nav { display: flex; gap: 4px; }
+    header nav button { background: transparent; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all .2s; }
+    header nav button.active { background: #e94560; color: white; border-color: #e94560; }
     #messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
     .msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
     .msg.user { align-self: flex-end; background: #16213e; color: white; border-bottom-right-radius: 4px; }
@@ -21,17 +24,75 @@
     #input-area input:focus { border-color: #e94560; }
     #input-area button { padding: 12px 24px; background: #e94560; color: white; border: none; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
     #input-area button:disabled { background: #ccc; cursor: not-allowed; }
+    .hidden { display: none !important; }
+
+    /* KB Management */
+    #kb-panel { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    #kb-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .stat-card { background: white; border-radius: 8px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-width: 120px; }
+    .stat-card .num { font-size: 24px; font-weight: 700; color: #e94560; }
+    .stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+    #kb-docs { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+    #kb-docs h3 { padding: 16px 20px; font-size: 15px; border-bottom: 1px solid #eee; }
+    .doc-item { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid #f0f0f0; gap: 12px; }
+    .doc-item:last-child { border-bottom: none; }
+    .doc-item .doc-id { font-size: 11px; color: #999; min-width: 70px; font-family: monospace; }
+    .doc-item .doc-content { flex: 1; font-size: 13px; color: #333; line-height: 1.5; max-height: 48px; overflow: hidden; }
+    .doc-item .doc-meta { font-size: 11px; color: #aaa; white-space: nowrap; display: flex; gap: 6px; }
+    .doc-item .doc-meta span { background: #f0f0f0; padding: 2px 8px; border-radius: 10px; }
+    .doc-item button { background: none; border: 1px solid #e0e0e0; color: #c0392b; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    .doc-item button:hover { background: #ffe0e0; border-color: #c0392b; }
+
+    #add-doc-form { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 12px; }
+    #add-doc-form h3 { font-size: 15px; }
+    #add-doc-form textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; resize: vertical; min-height: 80px; font-family: inherit; }
+    #add-doc-form textarea:focus { border-color: #e94560; outline: none; }
+    #add-doc-form .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    #add-doc-form .row input { flex: 1; min-width: 120px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+    #add-doc-form .row input:focus { border-color: #e94560; outline: none; }
+    #add-doc-form button { align-self: flex-end; padding: 8px 20px; background: #e94560; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    #add-doc-form button:disabled { background: #ccc; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #333; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .3s; z-index: 100; }
+    .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
-  <header>CS Agent <span>智能客服 Demo</span></header>
+  <header>
+    CS Agent <span>智能客服 Demo</span>
+    <nav>
+      <button id="tab-chat" class="active" onclick="switchTab('chat')">对话</button>
+      <button id="tab-kb" onclick="switchTab('kb')">知识库管理</button>
+    </nav>
+  </header>
+
+  <!-- Chat Panel -->
   <div id="messages"></div>
   <div id="input-area">
     <input id="input" type="text" placeholder="输入消息，例如：帮我查订单 ORD-001" autofocus />
     <button id="send" onclick="send()">发送</button>
   </div>
 
+  <!-- KB Management Panel -->
+  <div id="kb-panel" class="hidden">
+    <div id="kb-stats"></div>
+    <div id="kb-docs"><h3>文档列表</h3><div id="kb-docs-list"></div></div>
+    <div id="add-doc-form">
+      <h3>添加文档</h3>
+      <textarea id="doc-content" placeholder="输入文档内容，例如：新退货政策：自收到商品之日起30天内可申请退货..."></textarea>
+      <div class="row">
+        <input id="doc-id" placeholder="ID（留空自动生成）" />
+        <input id="doc-category" placeholder="分类（如：退货、物流）" />
+        <input id="doc-tenant" placeholder="租户ID（可选）" />
+      </div>
+      <button id="add-doc-btn" onclick="addDocument()">添加</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
   <script>
+    // ========== Chat ==========
     const messages = document.getElementById('messages');
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
@@ -59,7 +120,6 @@
     async function send() {
       const message = input.value.trim();
       if (!message) return;
-
       input.value = '';
       sendBtn.disabled = true;
       addMessage('user', message);
@@ -86,11 +146,9 @@
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
-
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             try {
@@ -104,7 +162,6 @@
         if (agentResponse) {
           history.push({ role: 'user', content: message });
           history.push({ role: 'assistant', content: agentResponse });
-          // Keep history manageable
           if (history.length > 20) history = history.slice(-20);
         }
       } catch (err) {
@@ -137,6 +194,134 @@
     }
 
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+
+    // ========== Tabs ==========
+    function switchTab(tab) {
+      const chatEls = [document.getElementById('messages'), document.getElementById('input-area')];
+      const kbEl = document.getElementById('kb-panel');
+      document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+      document.getElementById('tab-kb').classList.toggle('active', tab === 'kb');
+      if (tab === 'chat') {
+        chatEls.forEach(e => e.classList.remove('hidden'));
+        kbEl.classList.add('hidden');
+        input.focus();
+      } else {
+        chatEls.forEach(e => e.classList.add('hidden'));
+        kbEl.classList.remove('hidden');
+        loadKB();
+      }
+    }
+
+    // ========== Toast ==========
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    // ========== KB CRUD ==========
+    async function loadKB() {
+      try {
+        const [docsRes, statsRes] = await Promise.all([
+          fetch('/api/kb/documents'),
+          fetch('/api/kb/stats'),
+        ]);
+        const docs = await docsRes.json();
+        const stats = await statsRes.json();
+        renderStats(stats);
+        renderDocs(docs.documents);
+      } catch (err) {
+        toast('加载知识库失败: ' + err.message);
+      }
+    }
+
+    function renderStats(stats) {
+      const el = document.getElementById('kb-stats');
+      let html = `<div class="stat-card"><div class="num">${stats.documentCount}</div><div class="label">文档总数</div></div>`;
+      for (const [cat, count] of Object.entries(stats.categories)) {
+        html += `<div class="stat-card"><div class="num">${count}</div><div class="label">${cat}</div></div>`;
+      }
+      el.innerHTML = html;
+    }
+
+    function renderDocs(docs) {
+      const el = document.getElementById('kb-docs-list');
+      if (docs.length === 0) {
+        el.innerHTML = '<div style="padding:40px;text-align:center;color:#aaa;font-size:14px;">暂无文档</div>';
+        return;
+      }
+      el.innerHTML = docs.map(d => `
+        <div class="doc-item">
+          <span class="doc-id">${esc(d.id)}</span>
+          <span class="doc-content">${esc(d.content)}</span>
+          <span class="doc-meta">
+            ${d.metadata?.category ? `<span>${esc(d.metadata.category)}</span>` : ''}
+            ${d.metadata?.tenantId ? `<span>租户: ${esc(d.metadata.tenantId)}</span>` : ''}
+          </span>
+          <button onclick="deleteDoc('${esc(d.id)}')">删除</button>
+        </div>
+      `).join('');
+    }
+
+    async function addDocument() {
+      const content = document.getElementById('doc-content').value.trim();
+      const id = document.getElementById('doc-id').value.trim();
+      const category = document.getElementById('doc-category').value.trim();
+      const tenantId = document.getElementById('doc-tenant').value.trim();
+      if (!content) { toast('请输入文档内容'); return; }
+
+      const btn = document.getElementById('add-doc-btn');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/kb/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...(id ? { id } : {}),
+            content,
+            ...(category ? { metadata: { category } } : {}),
+            ...(tenantId ? { tenantId } : {}),
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          toast('添加失败: ' + (err.error || '未知错误'));
+          return;
+        }
+        const result = await res.json();
+        toast('文档添加成功: ' + result.id);
+        document.getElementById('doc-content').value = '';
+        document.getElementById('doc-id').value = '';
+        loadKB();
+      } catch (err) {
+        toast('网络错误: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function deleteDoc(id) {
+      if (!confirm('确认删除文档 ' + id + '?')) return;
+      try {
+        const res = await fetch('/api/kb/documents/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!res.ok) {
+          const err = await res.json();
+          toast('删除失败: ' + (err.error || '未知错误'));
+          return;
+        }
+        toast('文档已删除: ' + id);
+        loadKB();
+      } catch (err) {
+        toast('网络错误: ' + err.message);
+      }
+    }
+
+    function esc(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
   </script>
 </body>
 </html>

@@ -18,7 +18,7 @@ function register(def: ToolDef, execute: ToolExecutor): void {
 }
 
 register(searchOrdersDef, (args) => searchOrders(String(args.query ?? '')));
-register(searchKbDef, (args) => searchKnowledgeBase(String(args.query ?? '')));
+register(searchKbDef, (args) => searchKnowledgeBase(String(args.query ?? ''), args.tenantId as string | undefined));
 register(transferHumanDef, (args) =>
   transferToHuman(String(args.reason ?? ''), String(args.summary ?? ''))
 );
