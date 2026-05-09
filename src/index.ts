@@ -1,4 +1,4 @@
-import { config } from './config.js';
+import { config, getApiKey, getBaseURL } from './config.js';
 import { logger } from './observability/logger.js';
 import { knowledgeBase } from './rag/knowledge-base.js';
 import { createApp } from './server/app.js';
@@ -7,6 +7,8 @@ import { createOpenAICompatProvider } from './llm/providers/openai-compat.js';
 import { createAnthropicProvider } from './llm/providers/anthropic.js';
 import { createGeminiProvider } from './llm/providers/google.js';
 import { setRetriever } from './tools/search-kb.js';
+import { createCircuitBreaker } from './agent/circuit-breaker.js';
+import { createFallbackChain } from './agent/circuit-breaker.js';
 
 // Register all 6 LLM providers
 registerProvider('deepseek', createOpenAICompatProvider('https://api.deepseek.com/v1'));
@@ -29,14 +31,46 @@ async function main(): Promise<void> {
   // Wire Retriever into tools
   setRetriever(knowledgeBase);
 
-  // Create LLM client
-  const llmClient = createClient(config.LLM_PROVIDER, {
-    apiKey: config.LLM_API_KEY,
-    baseURL: config.LLM_BASE_URL,
-  });
+  // Build fallback chain: each provider wrapped in circuit breaker
+  // Providers without API keys are silently skipped
+  const providers: Array<{ name: string; client: ReturnType<typeof createCircuitBreaker> }> = [];
+
+  for (const name of ['deepseek', 'openai', 'claude', 'gemini', 'qwen', 'kimi']) {
+    try {
+      const client = createCircuitBreaker(
+        createClient(name, {
+          apiKey: getApiKey(name),
+          baseURL: getBaseURL(name),
+        })
+      );
+      providers.push({ name, client });
+    } catch {
+      // Provider not configured — skip
+    }
+  }
+
+  // Ensure primary provider is first in chain
+  const primaryIdx = providers.findIndex((p) => p.name === config.LLM_PROVIDER);
+  if (primaryIdx > 0) {
+    const primary = providers.splice(primaryIdx, 1)[0]!;
+    providers.unshift(primary);
+  }
+  if (providers.length === 0) {
+    throw new Error('No LLM provider configured');
+  }
+
+  const llmClient =
+    providers.length > 1
+      ? createFallbackChain(providers)
+      : providers[0]!.client;
+
+  logger.info(
+    { providers: providers.map((p) => p.name) },
+    `LLM chain ready (${providers.length} provider${providers.length > 1 ? 's' : ''})`
+  );
 
   // Start HTTP server
-  const app = createApp(llmClient, config.LLM_MODEL);
+  const app = createApp(llmClient, config.LLM_MODEL, config.LLM_PROVIDER);
   app.listen(config.PORT, () => {
     logger.info(
       { port: config.PORT, provider: config.LLM_PROVIDER, model: config.LLM_MODEL },
@@ -44,6 +78,7 @@ async function main(): Promise<void> {
     );
     logger.info(`Open http://localhost:${config.PORT} to use the chat UI`);
     logger.info(`Health check: http://localhost:${config.PORT}/health`);
+    logger.info(`Metrics: http://localhost:${config.PORT}/metrics`);
   });
 }
 

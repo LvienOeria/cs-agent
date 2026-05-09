@@ -4,14 +4,25 @@ import { logger } from '../observability/logger.js';
 import { RequestTracker } from '../observability/tracker.js';
 import { SYSTEM_PROMPT } from './prompts.js';
 import { getAllToolDefs, executeTool } from '../tools/registry.js';
+import { executeWithTimeout } from './tool-timeout.js';
+import { sanitizeToolResult } from '../middleware/guardrails/output.js';
+import {
+  llmRequestDuration,
+  llmTokenUsage,
+  toolExecutionDuration,
+  agentRounds,
+  requestErrors,
+} from '../observability/metrics.js';
 import type { AgentStreamEvent } from './types.js';
 import type { LLMClient } from '../llm/types.js';
 
 const MAX_ROUNDS = 5;
+const TOOL_TIMEOUT_MS = 30_000;
 
 export async function* runAgentLoop(
   client: LLMClient,
   model: string,
+  provider: string,
   userMessage: string,
   history: ChatCompletionMessageParam[],
   tracker: RequestTracker
@@ -36,17 +47,25 @@ export async function* runAgentLoop(
         tools,
         tool_choice: 'auto',
       });
+      llmRequestDuration.observe({ provider, model }, Date.now() - roundStart);
     } catch (err) {
+      llmRequestDuration.observe({ provider, model }, Date.now() - roundStart);
+      requestErrors.inc({ type: 'llm_error' });
       const message = err instanceof Error ? err.message : 'LLM call failed';
       logger.error({ err, round }, 'LLM API error');
       yield { type: 'error', message: `AI 服务暂时不可用：${message}` };
       return;
     }
 
+    const promptTokens = response.usage?.promptTokens ?? 0;
+    const completionTokens = response.usage?.completionTokens ?? 0;
+    llmTokenUsage.inc({ provider, model, type: 'prompt' }, promptTokens);
+    llmTokenUsage.inc({ provider, model, type: 'completion' }, completionTokens);
+
     tracker.addRound({
       round,
-      promptTokens: response.usage?.promptTokens ?? 0,
-      completionTokens: response.usage?.completionTokens ?? 0,
+      promptTokens,
+      completionTokens,
       durationMs: Date.now() - roundStart,
       toolCalls: [],
     });
@@ -58,6 +77,7 @@ export async function* runAgentLoop(
       );
 
       if (functionCalls.length === 0) {
+        requestErrors.inc({ type: 'unsupported_tool' });
         yield { type: 'error', message: 'AI 尝试使用不支持的工具类型' };
         return;
       }
@@ -88,25 +108,35 @@ export async function* runAgentLoop(
         yield { type: 'tool_call', name: toolName, args, round };
 
         const toolStart = Date.now();
-        const result = await executeTool(tc.id, toolName, args);
+        const content = await executeWithTimeout(
+          toolName,
+          () => executeTool(tc.id, toolName, args).then((r) => r.content),
+          TOOL_TIMEOUT_MS
+        );
         const toolDuration = Date.now() - toolStart;
+        toolExecutionDuration.observe({ tool_name: toolName }, toolDuration);
+
+        const parsed = JSON.parse(content);
+        const result = {
+          tool_call_id: tc.id,
+          role: 'tool' as const,
+          content: sanitizeToolResult(content),
+        };
 
         const lastRound = tracker.lastRound;
         if (lastRound) {
           lastRound.toolCalls.push({
             toolName,
             durationMs: toolDuration,
-            success: !JSON.parse(result.content).error,
-            errorMessage: JSON.parse(result.content).error
-              ? JSON.parse(result.content).message
-              : undefined,
+            success: !parsed.error,
+            errorMessage: parsed.error ? parsed.message : undefined,
           });
         }
 
         yield {
           type: 'tool_result',
           name: toolName,
-          success: !JSON.parse(result.content).error,
+          success: !parsed.error,
           round,
         };
 
@@ -118,6 +148,7 @@ export async function* runAgentLoop(
 
     // No tool calls — text response
     yield { type: 'status', status: 'responding', round };
+    agentRounds.observe(round);
     yield {
       type: 'done',
       content: response.content ?? '抱歉，我暂时无法回答这个问题。',
@@ -127,6 +158,8 @@ export async function* runAgentLoop(
   }
 
   // Max rounds exceeded
+  requestErrors.inc({ type: 'max_rounds' });
+  agentRounds.observe(MAX_ROUNDS);
   yield {
     type: 'error',
     message: '处理步骤过多，未能完成您的请求。请尝试简化问题，或为您转接人工客服。',

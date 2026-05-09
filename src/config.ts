@@ -63,6 +63,19 @@ function resolveModel(): string {
   return raw.LLM_MODEL || raw.DEEPSEEK_MODEL || PROVIDER_DEFAULTS[raw.LLM_PROVIDER].model;
 }
 
+export function getApiKey(provider: string): string {
+  // Check generic key first
+  if (raw.LLM_API_KEY) return raw.LLM_API_KEY;
+  // Then provider-specific key
+  const key = raw[`${provider.toUpperCase()}_API_KEY` as keyof typeof raw] as string | undefined;
+  if (key) return key;
+  throw new Error(`No API key for provider ${provider}`);
+}
+
+export function getBaseURL(provider: string): string {
+  return raw.LLM_BASE_URL || PROVIDER_DEFAULTS[provider as ProviderId]?.baseURL || '';
+}
+
 export const config = {
   ...raw,
   LLM_API_KEY: resolveApiKey(),

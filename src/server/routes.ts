@@ -5,6 +5,7 @@ import { logger } from '../observability/logger.js';
 import { RequestTracker } from '../observability/tracker.js';
 import { runAgentLoop } from '../agent/loop.js';
 import { setupSSE, sendSSEEvent, closeSSE } from './sse.js';
+import { requestErrors } from '../observability/metrics.js';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import type { LLMClient } from '../llm/types.js';
 
@@ -16,7 +17,7 @@ const chatRequestSchema = z.object({
     .default([]),
 });
 
-export function createRouter(client: LLMClient, model: string): Router {
+export function createRouter(client: LLMClient, model: string, provider: string): Router {
   const router = Router();
 
   router.post('/chat/stream', async (req: Request, res: Response) => {
@@ -42,6 +43,7 @@ export function createRouter(client: LLMClient, model: string): Router {
       for await (const event of runAgentLoop(
         client,
         model,
+        provider,
         message,
         history as unknown as ChatCompletionMessageParam[],
         tracker
@@ -56,6 +58,7 @@ export function createRouter(client: LLMClient, model: string): Router {
         }
       }
     } catch (err) {
+      requestErrors.inc({ type: 'internal' });
       logger.error({ requestId, err }, 'Unexpected error in agent loop');
       sendSSEEvent(res, {
         type: 'error',
