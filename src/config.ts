@@ -1,14 +1,66 @@
 import { z } from 'zod';
 import 'dotenv/config';
 
-const envSchema = z.object({
-  DEEPSEEK_API_KEY: z.string().min(1, 'DEEPSEEK_API_KEY is required'),
-  DEEPSEEK_BASE_URL: z.string().url().default('https://api.deepseek.com/v1'),
-  DEEPSEEK_MODEL: z.string().default('deepseek-chat'),
+const PROVIDER_IDS = ['deepseek', 'openai', 'claude', 'gemini', 'qwen', 'kimi'] as const;
+export type ProviderId = (typeof PROVIDER_IDS)[number];
+
+export const envSchema = z.object({
+  // Multi-LLM config (new)
+  LLM_PROVIDER: z.enum(PROVIDER_IDS).default('deepseek'),
+  LLM_API_KEY: z.string().optional(),
+  LLM_BASE_URL: z.string().url().optional(),
+  LLM_MODEL: z.string().optional(),
+
+  // Backwards compat: DeepSeek-only config
+  DEEPSEEK_API_KEY: z.string().optional(),
+  DEEPSEEK_BASE_URL: z.string().url().optional(),
+  DEEPSEEK_MODEL: z.string().optional(),
+
+  // Server
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 });
 
-export const config = envSchema.parse(process.env);
+const raw = envSchema.parse(process.env);
 
-export type Config = z.infer<typeof envSchema>;
+// Resolve: LLM_API_KEY > provider-specific key > error
+const PROVIDER_DEFAULTS: Record<ProviderId, { baseURL: string; model: string }> = {
+  deepseek: { baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  openai: { baseURL: 'https://api.openai.com/v1', model: 'gpt-4o' },
+  claude: { baseURL: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6' },
+  gemini: { baseURL: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.0-flash' },
+  qwen: { baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  kimi: { baseURL: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+};
+
+function resolveApiKey(): string {
+  const generic = raw.LLM_API_KEY;
+  if (generic) return generic;
+
+  // Fallback to provider-specific key (e.g. DEEPSEEK_API_KEY)
+  const specificKey = raw[`${raw.LLM_PROVIDER.toUpperCase()}_API_KEY` as keyof typeof raw] as
+    | string
+    | undefined;
+  if (specificKey) return specificKey;
+
+  throw new Error(
+    `No API key configured. Set LLM_API_KEY or ${raw.LLM_PROVIDER.toUpperCase()}_API_KEY.`
+  );
+}
+
+function resolveBaseURL(): string {
+  return raw.LLM_BASE_URL || PROVIDER_DEFAULTS[raw.LLM_PROVIDER].baseURL;
+}
+
+function resolveModel(): string {
+  return raw.LLM_MODEL || raw.DEEPSEEK_MODEL || PROVIDER_DEFAULTS[raw.LLM_PROVIDER].model;
+}
+
+export const config = {
+  ...raw,
+  LLM_API_KEY: resolveApiKey(),
+  LLM_BASE_URL: resolveBaseURL(),
+  LLM_MODEL: resolveModel(),
+} as const;
+
+export type Config = typeof config;

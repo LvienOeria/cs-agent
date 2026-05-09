@@ -1,17 +1,17 @@
-import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import type { ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions/completions';
-import { config } from '../config.js';
 import { logger } from '../observability/logger.js';
 import { RequestTracker } from '../observability/tracker.js';
 import { SYSTEM_PROMPT } from './prompts.js';
 import { getAllToolDefs, executeTool } from '../tools/registry.js';
 import type { AgentStreamEvent } from './types.js';
+import type { LLMClient } from '../llm/types.js';
 
 const MAX_ROUNDS = 5;
 
 export async function* runAgentLoop(
-  client: OpenAI,
+  client: LLMClient,
+  model: string,
   userMessage: string,
   history: ChatCompletionMessageParam[],
   tracker: RequestTracker
@@ -22,22 +22,17 @@ export async function* runAgentLoop(
     { role: 'user', content: userMessage },
   ];
 
-  const tools = getAllToolDefs().map((def) => ({
-    type: def.type as 'function',
-    function: def.function,
-  }));
+  const tools = getAllToolDefs();
 
   for (let round = 1; round <= MAX_ROUNDS; round++) {
-    // Step 1: Signal "thinking"
     yield { type: 'status', status: 'thinking', round };
 
-    // Step 2: Call LLM
     const roundStart = Date.now();
     let response;
     try {
-      response = await client.chat.completions.create({
-        model: config.DEEPSEEK_MODEL,
-        messages,
+      response = await client.complete({
+        model,
+        messages: messages as unknown as import('../llm/types.js').LLMMessage[],
         tools,
         tool_choice: 'auto',
       });
@@ -48,28 +43,17 @@ export async function* runAgentLoop(
       return;
     }
 
-    const choice = response.choices[0];
-    if (!choice) {
-      yield { type: 'error', message: 'AI 返回了空响应，请重试' };
-      return;
-    }
-
-    const { message } = choice;
-
-    // Step 3: Record token usage
-    const usage = response.usage;
     tracker.addRound({
       round,
-      promptTokens: usage?.prompt_tokens ?? 0,
-      completionTokens: usage?.completion_tokens ?? 0,
+      promptTokens: response.usage?.promptTokens ?? 0,
+      completionTokens: response.usage?.completionTokens ?? 0,
       durationMs: Date.now() - roundStart,
       toolCalls: [],
     });
 
-    // Step 4: If LLM has tool calls, execute them
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      // Only handle function-type tool calls (ignore custom tools)
-      const functionCalls = message.tool_calls.filter(
+    // If LLM has tool calls, execute them
+    if (response.toolCalls.length > 0) {
+      const functionCalls = response.toolCalls.filter(
         (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === 'function'
       );
 
@@ -78,10 +62,9 @@ export async function* runAgentLoop(
         return;
       }
 
-      // Add assistant message (with tool calls) to history
       messages.push({
         role: 'assistant',
-        content: message.content,
+        content: response.content,
         tool_calls: functionCalls.map((tc) => ({
           id: tc.id,
           type: 'function' as const,
@@ -92,7 +75,6 @@ export async function* runAgentLoop(
         })),
       });
 
-      // Execute each tool
       for (const tc of functionCalls) {
         const toolName = tc.function.name;
         let args: Record<string, unknown> = {};
@@ -103,15 +85,10 @@ export async function* runAgentLoop(
           logger.warn({ toolName, raw: tc.function.arguments }, 'Failed to parse tool arguments');
         }
 
-        yield {
-          type: 'tool_call',
-          name: toolName,
-          args,
-          round,
-        };
+        yield { type: 'tool_call', name: toolName, args, round };
 
         const toolStart = Date.now();
-        const result = executeTool(tc.id, toolName, args);
+        const result = await executeTool(tc.id, toolName, args);
         const toolDuration = Date.now() - toolStart;
 
         const lastRound = tracker.lastRound;
@@ -139,17 +116,17 @@ export async function* runAgentLoop(
       continue;
     }
 
-    // Step 5: No tool calls — LLM gave a text response
+    // No tool calls — text response
     yield { type: 'status', status: 'responding', round };
     yield {
       type: 'done',
-      content: message.content ?? '抱歉，我暂时无法回答这个问题。',
+      content: response.content ?? '抱歉，我暂时无法回答这个问题。',
       rounds: round,
     };
     return;
   }
 
-  // Step 6: Max rounds exceeded
+  // Max rounds exceeded
   yield {
     type: 'error',
     message: '处理步骤过多，未能完成您的请求。请尝试简化问题，或为您转接人工客服。',

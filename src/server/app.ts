@@ -1,7 +1,8 @@
 import express from 'express';
-import { router } from './routes.js';
+import { createRouter } from './routes.js';
+import type { LLMClient } from '../llm/types.js';
 
-export function createApp(): express.Application {
+export function createApp(client: LLMClient, model: string): express.Application {
   const app = express();
 
   app.use(express.json());
@@ -10,7 +11,7 @@ export function createApp(): express.Application {
   app.use(express.static('public'));
 
   // API routes
-  app.use('/api', router);
+  app.use('/api', createRouter(client, model));
 
   // Health check
   app.get('/health', (_req, res) => {

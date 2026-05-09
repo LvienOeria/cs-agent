@@ -1,5 +1,11 @@
 import type { ToolDef } from './types.js';
-import { knowledgeBase } from '../rag/knowledge-base.js';
+import type { Retriever } from '../rag/types.js';
+
+let retriever: Retriever | null = null;
+
+export function setRetriever(r: Retriever): void {
+  retriever = r;
+}
 
 export const searchKbDef: ToolDef = {
   type: 'function',
@@ -20,16 +26,20 @@ export const searchKbDef: ToolDef = {
   },
 };
 
-export function searchKnowledgeBase(query: string): string {
-  const results = knowledgeBase.search(query, 3);
+export async function searchKnowledgeBase(query: string): Promise<string> {
+  if (!retriever) {
+    return JSON.stringify({ found: false, message: '知识库未初始化' });
+  }
+
+  const results = await retriever.search(query, 3);
 
   if (results.length === 0) {
     return JSON.stringify({ found: false, message: '未找到相关知识库内容' });
   }
 
   const items = results.map((r) => ({
-    id: r.document.id,
-    content: r.document.content,
+    id: r.chunk.id,
+    content: r.chunk.content,
     relevance: Math.round(r.score * 100) / 100,
   }));
 

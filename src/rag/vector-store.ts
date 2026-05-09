@@ -1,44 +1,37 @@
 import { tokenize, buildTFVector, cosineSimilarity } from './embedder.js';
+import type { Chunk, SearchResult } from './types.js';
 
-export interface Document {
-  id: string;
-  content: string;
-  metadata?: Record<string, string>;
-}
-
-export interface SearchResult {
-  document: Document;
-  score: number;
-}
-
-interface IndexedDocument {
-  document: Document;
+interface IndexedChunk {
+  chunk: Chunk;
   vector: Map<string, number>;
+  tenantId?: string;
 }
 
 export class VectorStore {
-  private documents: IndexedDocument[] = [];
+  private entries: IndexedChunk[] = [];
 
-  add(document: Document): void {
-    const tokens = tokenize(document.content);
+  add(chunk: Chunk, tenantId?: string): void {
+    const tokens = tokenize(chunk.content);
     const vector = buildTFVector(tokens);
-    this.documents.push({ document, vector });
+    this.entries.push({ chunk, vector, tenantId });
   }
 
-  addAll(documents: Document[]): void {
-    for (const doc of documents) {
-      this.add(doc);
+  addAll(chunks: Chunk[], tenantId?: string): void {
+    for (const chunk of chunks) {
+      this.add(chunk, tenantId);
     }
   }
 
-  search(query: string, topK: number = 5): SearchResult[] {
+  search(query: string, topK: number = 5, tenantId?: string): SearchResult[] {
     const queryTokens = tokenize(query);
     const queryVector = buildTFVector(queryTokens);
 
-    const scored: SearchResult[] = this.documents.map(({ document, vector }) => ({
-      document,
-      score: cosineSimilarity(queryVector, vector),
-    }));
+    const scored: { chunk: Chunk; score: number }[] = this.entries
+      .filter((e) => !tenantId || e.tenantId === tenantId)
+      .map(({ chunk, vector }) => ({
+        chunk,
+        score: cosineSimilarity(queryVector, vector),
+      }));
 
     return scored
       .filter((r) => r.score > 0)
@@ -46,7 +39,15 @@ export class VectorStore {
       .slice(0, topK);
   }
 
+  removeByDocumentId(docId: string, tenantId?: string): number {
+    const before = this.entries.length;
+    this.entries = this.entries.filter(
+      (e) => !(e.chunk.metadata?.documentId === docId && (!tenantId || e.tenantId === tenantId))
+    );
+    return before - this.entries.length;
+  }
+
   get size(): number {
-    return this.documents.length;
+    return this.entries.length;
   }
 }
