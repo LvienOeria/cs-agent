@@ -1,4 +1,5 @@
 import express from 'express';
+import helmet from 'helmet';
 import { createRouter } from './routes.js';
 import { createKbRouter } from './kb-routes.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
@@ -9,6 +10,18 @@ import type { LLMClient } from '../llm/types.js';
 export function createApp(client: LLMClient, model: string, provider: string): express.Application {
   const app = express();
 
+  app.use(helmet());
+  app.use(
+    helmet.contentSecurityPolicy({
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+      },
+    })
+  );
   app.use(express.json());
 
   // Middleware chain for API routes
@@ -16,8 +29,8 @@ export function createApp(client: LLMClient, model: string, provider: string): e
   app.use('/api', rateLimiter);
   app.use('/api', inputGuardrail);
 
-  // Serve static frontend from public/
-  app.use(express.static('public'));
+  // Serve React frontend
+  app.use(express.static('frontend/dist'));
 
   // API routes
   app.use('/api', createRouter(client, model, provider));

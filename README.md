@@ -6,11 +6,12 @@
 
 ```bash
 pnpm install
-cp .env.example .env   # 编辑 .env 填入 API Key
-pnpm dev               # 开发模式（热重载）
+cp .env.example .env        # 编辑 .env 填入 API Key
+pnpm dev                    # 后端开发（Express :3000）
+pnpm dev:frontend           # 前端开发（Vite :5173 → proxy :3000）
 ```
 
-打开 http://localhost:3000 即可体验聊天界面。
+前端开发打开 http://localhost:5173，后端 API 在 http://localhost:3000。
 
 ## LLM Provider
 
@@ -38,10 +39,10 @@ PORT=3000
 
 ### Web UI
 
-聊天界面顶栏切换到「知识库管理」标签页，支持：
+左侧导航切换到「知识库」面板，支持：
 - 查看文档列表 + 分类统计
-- JSON 添加文档
-- 删除文档
+- 拖拽/点击上传文件（PDF/DOCX/TXT/MD）
+- 搜索筛选 + 删除文档
 
 ### API
 
@@ -101,10 +102,11 @@ User Message → Rate Limiter → Input Guardrail → Agent Loop (ReAct)
 ## 开发
 
 ```bash
-pnpm dev        # 热重载开发
-pnpm build      # TypeScript 编译
-pnpm start      # 生产启动
-pnpm test       # 运行测试
+pnpm dev             # 后端热重载开发
+pnpm dev:frontend    # 前端 Vite 开发服务器
+pnpm build           # 全量构建 (tsc + vite)
+pnpm start           # 生产启动
+pnpm test            # 运行测试
 ```
 
 详见 [CLAUDE.md](./CLAUDE.md) — 完整开发文档。

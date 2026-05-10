@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "dev:frontend": "cd frontend && pnpm dev",
+    "build": "tsc && cd frontend && pnpm build",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -22,9 +23,12 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
     "@google/generative-ai": "^0.24.1",
+    "dompurify": "^3.4.2",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "helmet": "^8.1.0",
     "mammoth": "^1.12.0",
+    "marked": "^18.0.3",
     "multer": "^2.1.1",
     "openai": "^6.36.0",
     "pdf-parse": "^2.4.5",
@@ -35,6 +39,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.1.0",
     "@types/node": "^25.6.0",
