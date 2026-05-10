@@ -36,18 +36,36 @@ export function useSSE(tenantId: string) {
     abortRef.current = controller;
 
     let agentContent = '';
+    let streamingMsgId = '';
     let lastStatusId = '';
 
     await streamChat(text, historyRef.current, tenantId, (e) => {
       switch (e.type) {
         case 'status':
           if (e.status === 'thinking') {
-            const id = crypto.randomUUID();
-            lastStatusId = id;
-            addMsg({ id, role: 'status', content: '思考中…', time: '' });
+            lastStatusId = crypto.randomUUID();
+            if (!streamingMsgId) {
+              addMsg({ id: lastStatusId, role: 'status', content: '思考中…', time: '' });
+            }
+          }
+          break;
+        case 'token':
+          // On first token, replace "thinking" with a streaming agent bubble
+          if (!streamingMsgId) {
+            setMessages(prev => prev.filter(m => m.id !== lastStatusId));
+            streamingMsgId = crypto.randomUUID();
+            addMsg({ id: streamingMsgId, role: 'agent', content: e.text || '', time: '' });
+          } else {
+            updateLast(m => ({ ...m, content: m.content + (e.text || '') }));
           }
           break;
         case 'tool_call':
+          // Remove streaming bubble when tool call arrives
+          if (streamingMsgId) {
+            setMessages(prev => prev.filter(m => m.id !== streamingMsgId));
+            streamingMsgId = '';
+            agentContent = ''; // discard intermediate thinking text
+          }
           addMsg({
             id: crypto.randomUUID(),
             role: 'status',
@@ -67,9 +85,18 @@ export function useSSE(tenantId: string) {
           break;
         case 'done':
           agentContent = e.content || '';
-          addMsg({ id: crypto.randomUUID(), role: 'agent', content: agentContent, time: now });
+          if (streamingMsgId) {
+            // Streaming already showed the content, just finalize
+            setMessages(prev => prev.filter(m => m.id !== lastStatusId));
+          } else if (agentContent) {
+            addMsg({ id: crypto.randomUUID(), role: 'agent', content: agentContent, time: now });
+          }
           break;
         case 'error':
+          if (streamingMsgId) {
+            setMessages(prev => prev.filter(m => m.id !== streamingMsgId));
+            streamingMsgId = '';
+          }
           addMsg({ id: crypto.randomUUID(), role: 'status', content: '❌ ' + (e.message || '错误'), time: '' });
           break;
       }

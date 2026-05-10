@@ -32,7 +32,7 @@ const raw = envSchema.parse(process.env);
 
 // Resolve: LLM_API_KEY > provider-specific key > error
 const PROVIDER_DEFAULTS: Record<ProviderId, { baseURL: string; model: string }> = {
-  deepseek: { baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  deepseek: { baseURL: 'https://api.deepseek.com', model: 'deepseek-v4-flash' },
   openai: { baseURL: 'https://api.openai.com/v1', model: 'gpt-4o' },
   claude: { baseURL: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6' },
   gemini: { baseURL: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.0-flash' },

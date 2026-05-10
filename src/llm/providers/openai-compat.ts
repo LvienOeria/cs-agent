@@ -36,6 +36,7 @@ export function createOpenAICompatProvider(defaultBaseURL: string): LLMProviderF
             ?.filter((tc) => tc.type === 'function')
             .map((tc) => ({
               id: tc.id,
+              index: 0,
               type: 'function' as const,
               function: {
                 name: tc.function.name,
@@ -71,6 +72,11 @@ export function createOpenAICompatProvider(defaultBaseURL: string): LLMProviderF
 
         for await (const chunk of stream) {
           const delta = chunk.choices[0]?.delta;
+          // DeepSeek v4 emits reasoning_content (internal thinking),
+          // must be captured and passed back in next turn
+          if ((delta as Record<string, unknown>)?.reasoning_content) {
+            yield { type: 'content', reasoningContent: (delta as Record<string, unknown>).reasoning_content as string };
+          }
           if (delta?.content) {
             yield { type: 'content', content: delta.content };
           }
@@ -80,6 +86,7 @@ export function createOpenAICompatProvider(defaultBaseURL: string): LLMProviderF
                 type: 'tool_call',
                 toolCall: {
                   id: tc.id ?? '',
+                  index: tc.index,
                   type: 'function' as const,
                   function: {
                     name: tc.function?.name ?? '',

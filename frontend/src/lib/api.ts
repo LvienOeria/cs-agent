@@ -26,7 +26,7 @@ export async function apiUpload(path: string, form: FormData): Promise<{ message
 }
 
 export interface SSEEvent {
-  type: 'status' | 'tool_call' | 'tool_result' | 'done' | 'error';
+  type: 'status' | 'tool_call' | 'tool_result' | 'done' | 'error' | 'token';
   status?: string;
   round?: number;
   name?: string;
@@ -35,6 +35,7 @@ export interface SSEEvent {
   content?: string;
   rounds?: number;
   message?: string;
+  text?: string;
 }
 
 export function streamChat(

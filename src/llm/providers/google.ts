@@ -80,6 +80,7 @@ export function createGeminiProvider(): LLMProviderFactory {
       if (!part.functionCall) return null;
       return {
         id: randomUUID(),
+        index: 0,
         type: 'function',
         function: {
           name: part.functionCall.name,

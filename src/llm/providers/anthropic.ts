@@ -102,6 +102,7 @@ export function createAnthropicProvider(): LLMProviderFactory {
           } else if (block.type === 'tool_use') {
             toolCalls.push({
               id: block.id,
+              index: 0,
               type: 'function',
               function: {
                 name: block.name,
@@ -149,6 +150,7 @@ export function createAnthropicProvider(): LLMProviderFactory {
               type: 'tool_call',
               toolCall: {
                 id: block.id,
+                index: 0,
                 type: 'function',
                 function: {
                   name: block.name,

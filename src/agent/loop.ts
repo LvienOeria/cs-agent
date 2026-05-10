@@ -1,5 +1,4 @@
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import type { ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions/completions';
 import { logger } from '../observability/logger.js';
 import { RequestTracker } from '../observability/tracker.js';
 import { SYSTEM_PROMPT } from './prompts.js';
@@ -14,7 +13,7 @@ import {
   requestErrors,
 } from '../observability/metrics.js';
 import type { AgentStreamEvent } from './types.js';
-import type { LLMClient } from '../llm/types.js';
+import type { LLMClient, ToolCallDelta } from '../llm/types.js';
 
 const MAX_ROUNDS = 5;
 const TOOL_TIMEOUT_MS = 30_000;
@@ -36,17 +35,51 @@ export async function* runAgentLoop(
   const tools = getAllToolDefs();
 
   for (let round = 1; round <= MAX_ROUNDS; round++) {
+    const roundStart = Date.now();
+    let accumulatedContent = '';
+    let accumulatedReasoning = '';
+    const toolCallMap = new Map<string, ToolCallDelta>();
+    let hasError = false;
+
+    // Stream LLM response
     yield { type: 'status', status: 'thinking', round };
 
-    const roundStart = Date.now();
-    let response;
     try {
-      response = await client.complete({
+      for await (const chunk of client.completeStream({
         model,
         messages: messages as unknown as import('../llm/types.js').LLMMessage[],
         tools,
         tool_choice: 'auto',
-      });
+      })) {
+        if (chunk.type === 'content') {
+          if (chunk.content) {
+            accumulatedContent += chunk.content;
+            yield { type: 'token', text: chunk.content };
+          }
+          if (chunk.reasoningContent) {
+            accumulatedReasoning += chunk.reasoningContent;
+          }
+        } else if (chunk.type === 'tool_call' && chunk.toolCall) {
+          const tc = chunk.toolCall;
+          // Use index as merge key — DeepSeek streams args without id/name
+          const key = String(tc.index);
+          const existing = toolCallMap.get(key);
+          if (existing) {
+            existing.function.arguments += tc.function.arguments;
+            if (tc.id) existing.id = tc.id;
+            if (tc.function.name) existing.function.name = tc.function.name;
+          } else {
+            toolCallMap.set(key, {
+              id: tc.id,
+              index: tc.index,
+              type: 'function' as const,
+              function: { name: tc.function.name, arguments: tc.function.arguments },
+            });
+          }
+        }
+        // 'done' signals stream end, ignore
+      }
+
       llmRequestDuration.observe({ provider, model }, Date.now() - roundStart);
     } catch (err) {
       llmRequestDuration.observe({ provider, model }, Date.now() - roundStart);
@@ -57,8 +90,10 @@ export async function* runAgentLoop(
       return;
     }
 
-    const promptTokens = response.usage?.promptTokens ?? 0;
-    const completionTokens = response.usage?.completionTokens ?? 0;
+    const toolCalls = [...toolCallMap.values()];
+
+    const promptTokens = round === 1 ? 500 : 300; // rough estimate for streaming
+    const completionTokens = accumulatedContent.length;
     llmTokenUsage.inc({ provider, model, type: 'prompt' }, promptTokens);
     llmTokenUsage.inc({ provider, model, type: 'completion' }, completionTokens);
 
@@ -70,10 +105,10 @@ export async function* runAgentLoop(
       toolCalls: [],
     });
 
-    // If LLM has tool calls, execute them
-    if (response.toolCalls.length > 0) {
-      const functionCalls = response.toolCalls.filter(
-        (tc): tc is ChatCompletionMessageFunctionToolCall => tc.type === 'function'
+    // If LLM returned tool calls
+    if (toolCalls.length > 0) {
+      const functionCalls = toolCalls.filter(
+        (tc) => tc.type === 'function' && !!tc.function?.name
       );
 
       if (functionCalls.length === 0) {
@@ -84,7 +119,8 @@ export async function* runAgentLoop(
 
       messages.push({
         role: 'assistant',
-        content: response.content,
+        content: accumulatedContent || null,
+        ...(accumulatedReasoning ? { reasoning_content: accumulatedReasoning } : {}),
         tool_calls: functionCalls.map((tc) => ({
           id: tc.id,
           type: 'function' as const,
@@ -147,17 +183,15 @@ export async function* runAgentLoop(
     }
 
     // No tool calls — text response
-    yield { type: 'status', status: 'responding', round };
     agentRounds.observe(round);
     yield {
       type: 'done',
-      content: response.content ?? '抱歉，我暂时无法回答这个问题。',
+      content: accumulatedContent || '抱歉，我暂时无法回答这个问题。',
       rounds: round,
     };
     return;
   }
 
-  // Max rounds exceeded
   requestErrors.inc({ type: 'max_rounds' });
   agentRounds.observe(MAX_ROUNDS);
   yield {

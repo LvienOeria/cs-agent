@@ -6,10 +6,12 @@ export interface LLMMessage {
   tool_calls?: ToolCallDelta[];
   tool_call_id?: string;
   name?: string;
+  reasoning_content?: string;
 }
 
 export interface ToolCallDelta {
   id: string;
+  index: number;
   type: 'function';
   function: {
     name: string;
@@ -36,6 +38,7 @@ export interface CompletionResponse {
 export interface StreamingChunk {
   type: 'content' | 'tool_call' | 'done';
   content?: string;
+  reasoningContent?: string;
   toolCall?: ToolCallDelta;
 }
 
